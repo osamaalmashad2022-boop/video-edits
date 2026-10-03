@@ -887,6 +887,23 @@
                 body: formData
             });
 
+            if (!response.ok) {
+                if (response.status === 413) {
+                    throw new Error("حجم الفيديو يتجاوز حد الاستضافة (413 Payload Too Large - Vercel limit 4.5MB). لمعالجة أحجام غير محدودة، شغّل التطبيق محلياً عبر Start_Web_App.bat!");
+                }
+                if (response.status === 404) {
+                    throw new Error("خادم المعالجة غير متصل (404 Not Found). Vercel لا تدعم تشغيل معالجة بايثون و FFmpeg. شغّل التطبيق محلياً عبر Start_Web_App.bat!");
+                }
+                const errorText = await response.text();
+                try {
+                    const parsed = JSON.parse(errorText);
+                    throw new Error(parsed.error || `Server error: ${response.status}`);
+                } catch (e) {
+                    if (e.message && !e.message.includes('JSON')) throw e;
+                    throw new Error(`خطأ من الخادم (${response.status})`);
+                }
+            }
+
             const data = await response.json();
             if (data.error) {
                 updateJobCard(tempId, { status: 'error', error: data.error, progress: 100 });
@@ -905,7 +922,7 @@
             pollJobStatus(data.job_id);
 
         } catch (err) {
-            updateJobCard(tempId, { status: 'error', error: 'Upload failed: ' + err.message, progress: 100 });
+            updateJobCard(tempId, { status: 'error', error: err.message, progress: 100 });
         }
     }
 
@@ -915,6 +932,9 @@
     async function pollJobStatus(jobId) {
         try {
             const res = await fetch(`/api/status/${jobId}`);
+            if (!res.ok) {
+                throw new Error(`Status ${res.status}`);
+            }
             const data = await res.json();
 
             updateJobCard(jobId, data);
