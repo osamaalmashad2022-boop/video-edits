@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remove Watermark - Video Tool</title>
+    <meta name="description" content="Remove Gemini Notebook watermark from videos by trimming the last 3.1 seconds automatically.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================================
+           CSS CUSTOM PROPERTIES (DESIGN TOKENS)
+           ============================================================ */
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a28;
+            --bg-card-hover: #22223a;
+            --bg-glass: rgba(26, 26, 40, 0.7);
+            --bg-glass-light: rgba(255, 255, 255, 0.03);
+
+            --text-primary: #f0f0f5;
+            --text-secondary: #9090a8;
+            --text-muted: #5a5a70;
+
+            --accent-primary: #6c5ce7;
+            --accent-secondary: #a29bfe;
+            --accent-glow: rgba(108, 92, 231, 0.3);
+
+            --success: #00d2a0;
+            --success-glow: rgba(0, 210, 160, 0.2);
+            --error: #ff6b6b;
+            --error-glow: rgba(255, 107, 107, 0.2);
+            --warning: #ffc048;
+
+            --border-color: rgba(255, 255, 255, 0.06);
+            --border-accent: rgba(108, 92, 231, 0.3);
+
+            --gradient-primary: linear-gradient(135deg, #6c5ce7, #a29bfe);
+            --gradient-bg: radial-gradient(ellipse at 50% 0%, rgba(108, 92, 231, 0.08) 0%, transparent 60%);
+            --gradient-card: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 100%);
+
+            --radius-sm: 8px;
+            --radius-md: 14px;
+            --radius-lg: 20px;
+            --radius-xl: 28px;
+
+            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+            --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.3);
+            --shadow-lg: 0 16px 64px rgba(0, 0, 0, 0.4);
+            --shadow-glow: 0 0 40px var(--accent-glow);
+
+            --font-primary: 'Inter', 'Cairo', sans-serif;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* ============================================================
+           RESET & BASE
+           ============================================================ */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            font-size: 16px;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font-primary);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            direction: ltr;
+        }
+
+        /* ============================================================
+           ANIMATED BACKGROUND
+           ============================================================ */
+        .bg-effects {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .bg-effects::before {
+            content: '';
+            position: absolute;
+            top: -20%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, rgba(108, 92, 231, 0.06) 0%, transparent 70%);
+            animation: pulse-bg 8s ease-in-out infinite;
+        }
+
+        .bg-effects::after {
+            content: '';
+            position: absolute;
+            bottom: -20%;
+            right: -10%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(162, 155, 254, 0.04) 0%, transparent 70%);
+            animation: pulse-bg 10s ease-in-out infinite reverse;
+        }
+
+        @keyframes pulse-bg {
+            0%, 100% { opacity: 0.5; transform: translateX(-50%) scale(1); }
+            50% { opacity: 1; transform: translateX(-50%) scale(1.2); }
+        }
+
+        .grid-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px);
+            background-size: 80px 80px;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* ============================================================
+           LAYOUT
+           ============================================================ */
+        .app-container {
+            position: relative;
+            z-index: 1;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 24px 60px;
+        }
+
+        /* ============================================================
+           HEADER
+           ============================================================ */
+        .app-header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .app-logo {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 72px;
+            height: 72px;
+            background: var(--gradient-primary);
+            border-radius: var(--radius-lg);
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-glow);
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .app-logo svg {
+            width: 36px;
+            height: 36px;
+            color: white;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .app-title {
+            font-size: 2.2rem;
+            font-weight: 800;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        .app-subtitle {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        .app-subtitle span {
+            color: var(--accent-secondary);
+            font-weight: 600;
+        }
+
+        /* ============================================================
+           SETTINGS BAR
+           ============================================================ */
+        .settings-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 32px;
+            padding: 16px 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+        }
+
+        .setting-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .setting-item .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            background: rgba(108, 92, 231, 0.12);
+            color: var(--accent-secondary);
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+
+        .setting-divider {
+            width: 1px;
+            height: 24px;
+            background: var(--border-color);
+        }
+
+        /* ============================================================
+           DROP ZONE
+           ============================================================ */
+        .drop-zone {
+            position: relative;
+            border: 2px dashed var(--border-accent);
+            border-radius: var(--radius-xl);
+            padding: 64px 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px);
+            overflow: hidden;
+        }
+
+        .drop-zone::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: var(--gradient-card);
+            border-radius: inherit;
+            pointer-events: none;
+        }
+
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: var(--accent-primary);
+            background: rgba(108, 92, 231, 0.06);
+            box-shadow: var(--shadow-glow);
+            transform: translateY(-2px);
+        }
+
+        .drop-zone.drag-over {
+            animation: pulse-border 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse-border {
+            0%, 100% { border-color: var(--accent-primary); }
+            50% { border-color: var(--accent-secondary); }
+        }
+
+        .drop-zone-icon {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 80px;
+            height: 80px;
+            background: rgba(108, 92, 231, 0.1);
+            border-radius: 50%;
+            margin-bottom: 20px;
+            transition: var(--transition);
+        }
+
+        .drop-zone:hover .drop-zone-icon {
+            background: rgba(108, 92, 231, 0.18);
+            transform: scale(1.05);
+        }
+
+        .drop-zone-icon svg {
+            width: 36px;
+            height: 36px;
+            color: var(--accent-secondary);
+        }
+
+        .drop-zone-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            position: relative;
+        }
+
+        .drop-zone-text {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            position: relative;
+        }
+
+        .drop-zone-text .browse {
+            color: var(--accent-secondary);
+            font-weight: 600;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+
+        .drop-zone-formats {
+            margin-top: 16px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            position: relative;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        /* ============================================================
+           JOB QUEUE (VIDEO CARDS)
+           ============================================================ */
+        .jobs-section {
+            margin-top: 32px;
+        }
+
+        .jobs-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .jobs-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .jobs-count {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            padding: 4px 12px;
+            background: var(--bg-card);
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .jobs-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* ============================================================
+           VIDEO JOB CARD
+           ============================================================ */
+        .job-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            transition: var(--transition);
+            animation: slide-in 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .job-card:hover {
+            background: var(--bg-card-hover);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        @keyframes slide-in {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .job-card-top {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 14px;
+        }
+
+        .job-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-sm);
+            background: rgba(108, 92, 231, 0.1);
+            flex-shrink: 0;
+        }
+
+        .job-icon svg {
+            width: 22px;
+            height: 22px;
+            color: var(--accent-secondary);
+        }
+
+        .job-icon.success {
+            background: var(--success-glow);
+        }
+        .job-icon.success svg {
+            color: var(--success);
+        }
+
+        .job-icon.error {
+            background: var(--error-glow);
+        }
+        .job-icon.error svg {
+            color: var(--error);
+        }
+
+        .job-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .job-filename {
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .job-meta {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .job-meta-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .job-actions {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        /* Progress Bar */
+        .job-progress {
+            position: relative;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .job-progress-bar {
+            height: 100%;
+            background: var(--gradient-primary);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+            position: relative;
+        }
+
+        .job-progress-bar.done {
+            background: var(--success);
+        }
+
+        .job-progress-bar.error {
+            background: var(--error);
+        }
+
+        .job-progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            animation: shimmer 2s ease-in-out infinite;
+        }
+
+        .job-progress-bar.done::after,
+        .job-progress-bar.error::after {
+            animation: none;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .job-status-text {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .job-status-text.success-text { color: var(--success); }
+        .job-status-text.error-text { color: var(--error); }
+
+        .job-error-msg {
+            font-size: 0.8rem;
+            color: var(--error);
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: var(--error-glow);
+            border-radius: var(--radius-sm);
+        }
+
+        /* Results Info */
+        .job-results {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .result-stat {
+            text-align: center;
+        }
+
+        .result-stat-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .result-stat-value {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .result-stat-value.accent {
+            color: var(--accent-secondary);
+        }
+
+        .result-stat-value.success-color {
+            color: var(--success);
+        }
+
+        /* ============================================================
+           BUTTONS
+           ============================================================ */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-primary);
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+        }
+
+        .btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .btn-primary {
+            background: var(--gradient-primary);
+            color: white;
+            box-shadow: 0 4px 16px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 24px var(--accent-glow);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: #0a0a0f;
+        }
+
+        .btn-success:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .btn-ghost {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-ghost:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-primary);
+        }
+
+        /* ============================================================
+           STATS FOOTER
+           ============================================================ */
+        .stats-footer {
+            margin-top: 40px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            text-align: center;
+            transition: var(--transition);
+        }
+
+        .stat-card:hover {
+            border-color: var(--border-accent);
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* ============================================================
+           SPINNER
+           ============================================================ */
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-top-color: var(--accent-secondary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ============================================================
+           EMPTY STATE
+           ============================================================ */
+        .empty-state {
+            display: none;
+        }
+
+        /* ============================================================
+           RESPONSIVE
+           ============================================================ */
+        @media (max-width: 640px) {
+            .app-container {
+                padding: 24px 16px 40px;
+            }
+
+            .app-title {
+                font-size: 1.6rem;
+            }
+
+            .drop-zone {
+                padding: 40px 24px;
+            }
+
+            .settings-bar {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .setting-divider {
+                width: 100%;
+                height: 1px;
+            }
+
+            .stats-footer {
+                grid-template-columns: 1fr;
+            }
+
+            .job-results {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .job-card-top {
+                flex-wrap: wrap;
+            }
+
+            .job-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Background Effects -->
+    <div class="bg-effects"></div>
+    <div class="grid-overlay"></div>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="app-logo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                    <line x1="6" y1="10" x2="6" y2="14" stroke-width="2.5"></line>
+                    <line x1="4" y1="12" x2="8" y2="12" stroke-width="2.5"></line>
+                </svg>
+            </div>
+            <h1 class="app-title">Remove Watermark</h1>
+            <p class="app-subtitle">Automatically trim <span>Gemini Notebook</span> logo from your videos</p>
+        </header>
+
+        <!-- Settings Bar -->
+        <div class="settings-bar">
+            <div class="setting-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Trim Duration
+                <span class="badge">3.1s</span>
+            </div>
+            <div class="setting-divider"></div>
+            <div class="setting-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                Mode
+                <span class="badge">Stream Copy (No Re-encode)</span>
+            </div>
+        </div>
+
+        <!-- Drop Zone -->
+        <div class="drop-zone" id="drop-zone">
+            <div class="drop-zone-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+            </div>
+            <div class="drop-zone-title">Drop your videos here</div>
+            <div class="drop-zone-text">or <span class="browse">browse files</span> to upload</div>
+            <div class="drop-zone-formats">MP4 &bull; MKV &bull; AVI &bull; MOV &bull; WEBM &bull; FLV &bull; WMV &bull; M4V</div>
+            <input type="file" id="file-input" accept=".mp4,.mkv,.avi,.mov,.webm,.flv,.wmv,.m4v,.ts,.mts" multiple>
+        </div>
+
+        <!-- Jobs List -->
+        <div class="jobs-section" id="jobs-section" style="display: none;">
+            <div class="jobs-header">
+                <span class="jobs-title">Processing Queue</span>
+                <span class="jobs-count" id="jobs-count">0 videos</span>
+            </div>
+            <div class="jobs-list" id="jobs-list"></div>
+        </div>
+
+        <!-- Stats Footer -->
+        <div class="stats-footer" id="stats-footer" style="display: none;">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-total">0</div>
+                <div class="stat-label">Videos Processed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-saved">0s</div>
+                <div class="stat-label">Time Trimmed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-size">0 MB</div>
+                <div class="stat-label">Space Saved</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ============================================================
+    // STATE
+    // ============================================================
+    const activeJobs = new Map();
+    let totalProcessed = 0;
+    let totalTimeSaved = 0;
+    let totalSizeSaved = 0;
+
+    // ============================================================
+    // DOM ELEMENTS
+    // ============================================================
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const jobsSection = document.getElementById('jobs-section');
+    const jobsList = document.getElementById('jobs-list');
+    const jobsCount = document.getElementById('jobs-count');
+
+    // ============================================================
+    // SVG ICONS
+    // ============================================================
+    const ICONS = {
+        video: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>`,
+        check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+        error: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+        download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+        trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+        clock: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+        size: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M7 12h10"/></svg>`,
+    };
+
+    // ============================================================
+    // DRAG & DROP
+    // ============================================================
+    ['dragenter', 'dragover'].forEach(e => {
+        dropZone.addEventListener(e, (ev) => {
+            ev.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+    });
+
+    ['dragleave', 'drop'].forEach(e => {
+        dropZone.addEventListener(e, (ev) => {
+            ev.preventDefault();
+            dropZone.classList.remove('drag-over');
+        });
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        handleFiles(files);
+    });
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+    // ============================================================
+    // FILE HANDLING
+    // ============================================================
+    function handleFiles(files) {
+        for (const file of files) {
+            uploadFile(file);
+        }
+        fileInput.value = '';
+    }
+
+    async function uploadFile(file) {
+        const formData = new FormData();
+        formData.append('video', file);
+
+        // Create card immediately with uploading state
+        const tempId = 'temp-' + Date.now() + Math.random().toString(36).slice(2, 6);
+        createJobCard(tempId, file.name, file.size);
+
+        try {
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            if (data.error) {
+                updateJobCard(tempId, { status: 'error', error: data.error, progress: 100 });
+                return;
+            }
+
+            // Replace temp ID with real job ID
+            const card = document.getElementById(`job-${tempId}`);
+            if (card) {
+                card.id = `job-${data.job_id}`;
+            }
+            activeJobs.set(data.job_id, activeJobs.get(tempId) || {});
+            activeJobs.delete(tempId);
+
+            // Start polling
+            pollJobStatus(data.job_id);
+
+        } catch (err) {
+            updateJobCard(tempId, { status: 'error', error: 'Upload failed: ' + err.message, progress: 100 });
+        }
+    }
+
+    // ============================================================
+    // JOB POLLING
+    // ============================================================
+    async function pollJobStatus(jobId) {
+        try {
+            const res = await fetch(`/api/status/${jobId}`);
+            const data = await res.json();
+
+            updateJobCard(jobId, data);
+
+            if (data.status === 'done') {
+                totalProcessed++;
+                totalTimeSaved += 3.1;
+                totalSizeSaved += (data.input_size - data.output_size) / 1024 / 1024;
+                updateStats();
+                return;
+            }
+
+            if (data.status === 'error') {
+                return;
+            }
+
+            // Continue polling
+            setTimeout(() => pollJobStatus(jobId), 500);
+        } catch {
+            setTimeout(() => pollJobStatus(jobId), 1000);
+        }
+    }
+
+    // ============================================================
+    // JOB CARD RENDERING
+    // ============================================================
+    function createJobCard(jobId, filename, fileSize) {
+        jobsSection.style.display = 'block';
+
+        const card = document.createElement('div');
+        card.className = 'job-card';
+        card.id = `job-${jobId}`;
+        card.innerHTML = `
+            <div class="job-card-top">
+                <div class="job-icon" id="job-icon-${jobId}">
+                    ${ICONS.video}
+                </div>
+                <div class="job-info">
+                    <div class="job-filename" title="${escapeHtml(filename)}">${escapeHtml(filename)}</div>
+                    <div class="job-meta">
+                        <span class="job-meta-item">${ICONS.size} ${formatSize(fileSize)}</span>
+                    </div>
+                </div>
+                <div class="job-actions" id="job-actions-${jobId}"></div>
+            </div>
+            <div class="job-progress">
+                <div class="job-progress-bar" id="job-bar-${jobId}" style="width: 5%"></div>
+            </div>
+            <div class="job-status-text" id="job-status-${jobId}">
+                <span class="spinner"></span> Uploading...
+            </div>
+            <div id="job-results-${jobId}"></div>
+        `;
+
+        jobsList.prepend(card);
+        activeJobs.set(jobId, { filename });
+        updateJobsCount();
+    }
+
+    function updateJobCard(jobId, data) {
+        const bar = document.getElementById(`job-bar-${jobId}`);
+        const status = document.getElementById(`job-status-${jobId}`);
+        const icon = document.getElementById(`job-icon-${jobId}`);
+        const actions = document.getElementById(`job-actions-${jobId}`);
+        const results = document.getElementById(`job-results-${jobId}`);
+
+        if (!bar || !status) return;
+
+        // Update progress
+        bar.style.width = `${data.progress || 0}%`;
+
+        if (data.status === 'processing') {
+            status.innerHTML = `<span class="spinner"></span> Processing... ${data.progress || 0}%`;
+        }
+
+        if (data.status === 'done') {
+            bar.classList.add('done');
+            bar.style.width = '100%';
+            status.className = 'job-status-text success-text';
+            status.innerHTML = `${ICONS.check} Done!`;
+            icon.className = 'job-icon success';
+            icon.innerHTML = ICONS.check;
+
+            // Add download + remove buttons
+            actions.innerHTML = `
+                <a href="/api/download/${jobId}" class="btn btn-success">${ICONS.download} Download</a>
+                <button class="btn btn-ghost" onclick="removeJob('${jobId}')">${ICONS.trash}</button>
+            `;
+
+            // Show results
+            if (data.duration) {
+                results.innerHTML = `
+                    <div class="job-results">
+                        <div class="result-stat">
+                            <div class="result-stat-label">Original</div>
+                            <div class="result-stat-value">${data.duration}s</div>
+                        </div>
+                        <div class="result-stat">
+                            <div class="result-stat-label">Trimmed</div>
+                            <div class="result-stat-value success-color">${data.new_duration}s</div>
+                        </div>
+                        <div class="result-stat">
+                            <div class="result-stat-label">Size</div>
+                            <div class="result-stat-value accent">${formatSize(data.input_size)} &rarr; ${formatSize(data.output_size)}</div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        if (data.status === 'error') {
+            bar.classList.add('error');
+            bar.style.width = '100%';
+            status.className = 'job-status-text error-text';
+            status.innerHTML = `${ICONS.error} Failed`;
+            icon.className = 'job-icon error';
+            icon.innerHTML = ICONS.error;
+
+            if (data.error) {
+                results.innerHTML = `<div class="job-error-msg">${escapeHtml(data.error)}</div>`;
+            }
+
+            actions.innerHTML = `
+                <button class="btn btn-ghost" onclick="removeJob('${jobId}')">${ICONS.trash}</button>
+            `;
+        }
+    }
+
+    // ============================================================
+    // UTILITIES
+    // ============================================================
+    async function removeJob(jobId) {
+        const card = document.getElementById(`job-${jobId}`);
+        if (card) {
+            card.style.animation = 'slide-out 0.3s ease forwards';
+            setTimeout(() => {
+                card.remove();
+                activeJobs.delete(jobId);
+                updateJobsCount();
+                if (activeJobs.size === 0) {
+                    jobsSection.style.display = 'none';
+                }
+            }, 300);
+        }
+        try { await fetch(`/api/cleanup/${jobId}`, { method: 'DELETE' }); } catch {}
+    }
+
+    function updateJobsCount() {
+        jobsCount.textContent = `${activeJobs.size} video${activeJobs.size !== 1 ? 's' : ''}`;
+    }
+
+    function updateStats() {
+        const footer = document.getElementById('stats-footer');
+        footer.style.display = 'grid';
+        document.getElementById('stat-total').textContent = totalProcessed;
+        document.getElementById('stat-saved').textContent = totalTimeSaved.toFixed(1) + 's';
+        document.getElementById('stat-size').textContent = totalSizeSaved.toFixed(1) + ' MB';
+    }
+
+    function formatSize(bytes) {
+        if (!bytes) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Slide-out animation
+    const styleSheet = document.createElement('style');
+    styleSheet.textContent = `
+        @keyframes slide-out {
+            to { opacity: 0; transform: translateY(-10px); height: 0; padding: 0; margin: 0; overflow: hidden; }
+        }
+    `;
+    document.head.appendChild(styleSheet);
+    </script>
+</body>
+</html>
