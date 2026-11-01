@@ -160,6 +160,8 @@ def collect_videos(paths: list[str]) -> list[tuple[str, str]]:
             # Recursively find all video files
             base_dir = path
             for root, dirs, files in os.walk(base_dir):
+                # Skip earlier results so a re-run doesn't trim already-trimmed videos again
+                dirs[:] = [d for d in dirs if d != OUTPUT_FOLDER]
                 for file in sorted(files):
                     filepath = Path(root) / file
                     if filepath.suffix.lower() in VIDEO_EXTENSIONS:

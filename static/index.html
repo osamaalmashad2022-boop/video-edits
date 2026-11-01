@@ -1053,48 +1053,51 @@
         const safeInput = `in_${Date.now()}.${ext}`;
         const safeOutput = `out_${Date.now()}.${ext}`;
 
-        // Write file into virtual FS
-        updateJobCard(jobId, { status: 'processing', progress: 65, statusText: 'Reading video data...' });
-        const fileBytes = await fetchFile(file);
-        await ffmpeg.writeFile(safeInput, fileBytes);
-
-        if (duration <= 0) {
-            duration = await getDurationFromFFmpeg(ffmpeg, safeInput);
-        }
-
-        if (duration <= 0) {
-            try { await ffmpeg.deleteFile(safeInput); } catch {}
-            throw new Error("Could not detect video duration.");
-        }
-
-        if (duration <= TRIM_SECONDS) {
-            try { await ffmpeg.deleteFile(safeInput); } catch {}
-            throw new Error(`Video is too short (${duration.toFixed(1)}s <= ${TRIM_SECONDS}s).`);
-        }
-
-        const newDuration = duration - TRIM_SECONDS;
-
-        // Step 3: Fast stream copy trim
-        updateJobCard(jobId, { status: 'processing', progress: 80, statusText: 'Trimming watermark (Stream Copy)...' });
-
-        await ffmpeg.exec([
-            '-i', safeInput,
-            '-t', newDuration.toFixed(3),
-            '-c', 'copy',
-            '-avoid_negative_ts', 'make_zero',
-            safeOutput
-        ]);
-
-        // Step 4: Read result
-        updateJobCard(jobId, { status: 'processing', progress: 95, statusText: 'Generating download link...' });
-        const outputBytes = await ffmpeg.readFile(safeOutput);
-
-        // Step 5: Clean virtual memory immediately
+        let newDuration;
+        let outputBytes;
         try {
-            await ffmpeg.deleteFile(safeInput);
-            await ffmpeg.deleteFile(safeOutput);
-        } catch (e) {
-            console.warn("Cleanup notice:", e);
+            // Write file into virtual FS
+            updateJobCard(jobId, { status: 'processing', progress: 65, statusText: 'Reading video data...' });
+            const fileBytes = await fetchFile(file);
+            await ffmpeg.writeFile(safeInput, fileBytes);
+
+            if (duration <= 0) {
+                duration = await getDurationFromFFmpeg(ffmpeg, safeInput);
+            }
+
+            if (duration <= 0) {
+                throw new Error("Could not detect video duration.");
+            }
+
+            if (duration <= TRIM_SECONDS) {
+                throw new Error(`Video is too short (${duration.toFixed(1)}s <= ${TRIM_SECONDS}s).`);
+            }
+
+            newDuration = duration - TRIM_SECONDS;
+
+            // Step 3: Fast stream copy trim
+            updateJobCard(jobId, { status: 'processing', progress: 80, statusText: 'Trimming watermark (Stream Copy)...' });
+
+            // ffmpeg.wasm 0.12 reports failure through the exit code, it does not throw
+            const exitCode = await ffmpeg.exec([
+                '-i', safeInput,
+                '-t', newDuration.toFixed(3),
+                '-c', 'copy',
+                '-avoid_negative_ts', 'make_zero',
+                safeOutput
+            ]);
+            if (exitCode !== 0) {
+                throw new Error(`Trimming failed (FFmpeg exit code ${exitCode}). The file may be corrupt or unsupported.`);
+            }
+
+            // Step 4: Read result
+            updateJobCard(jobId, { status: 'processing', progress: 95, statusText: 'Generating download link...' });
+            outputBytes = await ffmpeg.readFile(safeOutput);
+        } finally {
+            // Always free the virtual FS: a leftover input file keeps the whole video in wasm memory
+            // and starves later jobs. Rejections only mean the file was never created.
+            await ffmpeg.deleteFile(safeInput).catch(() => {});
+            await ffmpeg.deleteFile(safeOutput).catch(() => {});
         }
 
         // Create download blob URL

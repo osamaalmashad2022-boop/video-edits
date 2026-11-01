@@ -30,13 +30,12 @@ if %errorlevel% neq 0 (
 :: Get the directory where this .bat file is located
 set "SCRIPT_DIR=%~dp0"
 
-:: Run the Python script with all dragged-and-dropped arguments
-python "%SCRIPT_DIR%remove_watermark.py" %*
-
-:: If no arguments were provided, process the current folder
+:: Process the dropped files/folders, or this script's folder when nothing was dropped
 if "%~1"=="" (
     echo.
     echo  No files/folders were dropped. Processing current folder...
     echo.
     python "%SCRIPT_DIR%remove_watermark.py" "%SCRIPT_DIR%"
+) else (
+    python "%SCRIPT_DIR%remove_watermark.py" %*
 )
