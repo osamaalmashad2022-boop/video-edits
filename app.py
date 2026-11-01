@@ -13,7 +13,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from flask import Flask, request, jsonify, send_file, send_from_directory
+from flask import Flask, request, jsonify, send_file, send_from_directory, redirect
 
 # ============================================================
 # CONFIGURATION
@@ -156,6 +156,24 @@ def process_video(job_id: str, input_path: str, output_path: str):
 @app.route("/")
 def index():
     return send_from_directory(STATIC_FOLDER, "index.html")
+
+
+@app.route("/manifest.json")
+def manifest():
+    return send_from_directory(STATIC_FOLDER, "manifest.json", mimetype="application/manifest+json")
+
+
+@app.route("/sw.js")
+def service_worker():
+    response = send_from_directory(STATIC_FOLDER, "sw.js", mimetype="application/javascript")
+    response.headers["Service-Worker-Allowed"] = "/"
+    response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
+@app.route("/share-target", methods=["POST"])
+def share_target():
+    return redirect("/?shared=1", code=303)
 
 
 @app.route("/api/upload", methods=["POST"])
