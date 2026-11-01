@@ -5,9 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Remove Watermark - Video Tool</title>
     <meta name="description" content="Remove Gemini Notebook watermark from videos by trimming the last 3.1 seconds automatically.">
+    <!-- PWA Manifest & Mobile Configuration -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#6c5ce7">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="VideoTrimmer">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- IndexedDB Video Store for PWA Web Share Target -->
+    <script src="/static/idb-store.js"></script>
     <!-- FFmpeg WebAssembly (Client-Side Fast Processing) -->
     <script src="/static/vendor/ffmpeg/ffmpeg.js"></script>
     <script src="/static/vendor/ffmpeg/util.js"></script>
@@ -732,6 +743,85 @@
                 justify-content: flex-end;
             }
         }
+
+        /* ============================================================
+           PWA INSTALL BANNER & TOAST NOTIFICATION
+           ============================================================ */
+        .pwa-install-banner {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            background: linear-gradient(135deg, rgba(108, 92, 231, 0.22), rgba(0, 210, 160, 0.15));
+            border: 1px solid var(--accent-primary);
+            border-radius: var(--radius-md);
+            padding: 14px 20px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 24px rgba(108, 92, 231, 0.25);
+            animation: slide-in 0.3s ease;
+        }
+
+        .pwa-install-banner.visible {
+            display: flex;
+        }
+
+        .pwa-install-content {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .pwa-install-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-sm);
+            background: var(--gradient-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            color: #ffffff;
+        }
+
+        .pwa-install-text {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .pwa-install-sub {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .toast-notification {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--bg-card);
+            border: 1px solid var(--accent-primary);
+            color: var(--text-primary);
+            padding: 14px 28px;
+            border-radius: 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            z-index: 10000;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 0.92rem;
+        }
+
+        .toast-notification.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
     </style>
 </head>
 <body>
@@ -753,6 +843,23 @@
             <h1 class="app-title">Remove Watermark</h1>
             <p class="app-subtitle">Automatically trim <span>Gemini Notebook</span> logo from your videos</p>
         </header>
+
+        <!-- PWA Install Banner -->
+        <div class="pwa-install-banner" id="pwa-install-banner">
+            <div class="pwa-install-content">
+                <div class="pwa-install-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </div>
+                <div>
+                    <div class="pwa-install-text">تثبيت التطبيق على هاتفك (Install App)</div>
+                    <div class="pwa-install-sub">استقبل الفيديوهات مباشرة من خيار "مشاركة" بأي تطبيق</div>
+                </div>
+            </div>
+            <button class="btn btn-primary" id="pwa-install-btn">تثبيت الآن</button>
+        </div>
+
+        <!-- Toast Notification for Shared Videos -->
+        <div class="toast-notification" id="toast-notification"></div>
 
         <!-- Settings Bar -->
         <div class="settings-bar">
@@ -1291,6 +1398,103 @@
         }
     `;
     document.head.appendChild(styleSheet);
+
+    // ============================================================
+    // PWA & WEB SHARE TARGET LIFECYCLE
+    // ============================================================
+    function showToast(msg) {
+        const toast = document.getElementById('toast-notification');
+        if (!toast) return;
+        toast.innerHTML = `${ICONS.check} ${escapeHtml(msg)}`;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 5000);
+    }
+
+    // 1. Service Worker Registration
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                .then(reg => console.log('[PWA] Service Worker active with scope:', reg.scope))
+                .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
+        });
+    }
+
+    // 2. Install App Banner & Prompt
+    let deferredInstallPrompt = null;
+    const installBanner = document.getElementById('pwa-install-banner');
+    const installBtn = document.getElementById('pwa-install-btn');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        // Prevent default mini-infobar on mobile Chrome
+        e.preventDefault();
+        deferredInstallPrompt = e;
+        if (installBanner) {
+            installBanner.classList.add('visible');
+        }
+    });
+
+    if (installBtn) {
+        installBtn.addEventListener('click', async () => {
+            if (!deferredInstallPrompt) return;
+            deferredInstallPrompt.prompt();
+            const choiceResult = await deferredInstallPrompt.userChoice;
+            console.log('[PWA] Install prompt outcome:', choiceResult.outcome);
+            deferredInstallPrompt = null;
+            if (installBanner) {
+                installBanner.classList.remove('visible');
+            }
+        });
+    }
+
+    window.addEventListener('appinstalled', () => {
+        if (installBanner) {
+            installBanner.classList.remove('visible');
+        }
+        showToast('تم تثبيت التطبيق بنجاح! يمكنك الآن مشاركة مقاطع الفيديو إليه من أي تطبيق.');
+    });
+
+    // 3. Web Share Target Detection & Auto-Processing
+    async function checkIncomingSharedVideo() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasSharedFlag = urlParams.has('shared') || window.location.search.includes('shared=1');
+
+        if (typeof idbStore !== 'undefined') {
+            try {
+                const record = await idbStore.getSharedVideo();
+                if (record && record.file) {
+                    showToast('تم استلام الفيديو المشترك! جاري إضافته وقصه فوراً...');
+
+                    let file = record.file;
+                    if (!(file instanceof File)) {
+                        file = new File([record.file], record.name || 'shared_video.mp4', {
+                            type: record.type || 'video/mp4'
+                        });
+                    }
+
+                    // Enqueue the received video file
+                    enqueueFile(file);
+
+                    // Clean up IndexedDB store
+                    await idbStore.clearSharedVideo();
+
+                    // Clean up URL query parameters
+                    if (hasSharedFlag) {
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                }
+            } catch (err) {
+                console.warn('[PWA] Error reading shared video from IDB:', err);
+            }
+        }
+    }
+
+    // Check on startup and when returning from background
+    window.addEventListener('DOMContentLoaded', checkIncomingSharedVideo);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            checkIncomingSharedVideo();
+        }
+    });
     </script>
 </body>
 </html>
