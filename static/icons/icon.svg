@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141424"/>
+      <stop offset="100%" stop-color="#0a0a0f"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6c5ce7"/>
+      <stop offset="100%" stop-color="#a29bfe"/>
+    </linearGradient>
+    <linearGradient id="neonGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00d2a0"/>
+      <stop offset="100%" stop-color="#6c5ce7"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="512" height="512" rx="110" fill="url(#bgGrad)"/>
+  <rect x="12" y="12" width="488" height="488" rx="98" fill="none" stroke="url(#accentGrad)" stroke-width="6" opacity="0.4"/>
+
+  <!-- Glowing Accent Ring -->
+  <circle cx="256" cy="256" r="160" fill="none" stroke="url(#accentGrad)" stroke-width="12" opacity="0.25" filter="url(#glow)"/>
+
+  <!-- Scissors / Trimmer Symbol -->
+  <g transform="translate(136, 136) scale(0.94)" filter="url(#glow)">
+    <!-- Scissor Loop 1 -->
+    <circle cx="60" cy="190" r="34" fill="none" stroke="url(#accentGrad)" stroke-width="14"/>
+    <!-- Scissor Loop 2 -->
+    <circle cx="190" cy="190" r="34" fill="none" stroke="url(#accentGrad)" stroke-width="14"/>
+    
+    <!-- Scissor Blade 1 -->
+    <path d="M78 165 L190 55" stroke="url(#accentGrad)" stroke-width="16" stroke-linecap="round"/>
+    <!-- Scissor Blade 2 -->
+    <path d="M172 165 L60 55" stroke="url(#neonGlow)" stroke-width="16" stroke-linecap="round"/>
+    
+    <!-- Central Pivot Pin -->
+    <circle cx="125" cy="115" r="14" fill="#ffffff" stroke="#6c5ce7" stroke-width="5"/>
+    
+    <!-- Play Badge -->
+    <polygon points="120,105 136,115 120,125" fill="#6c5ce7"/>
+  </g>
+
+  <!-- Subtitle Text -->
+  <text x="256" y="420" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="28" fill="#a29bfe" letter-spacing="4">TRIMMER</text>
+</svg>
