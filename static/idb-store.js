@@ -39,6 +39,7 @@
 
   /**
    * Save a shared video File/Blob to IndexedDB
+   * Resolves only when transaction commits to disk (tx.oncomplete)
    * @param {Blob|File} file
    * @param {string} [filename]
    * @returns {Promise<void>}
@@ -47,23 +48,41 @@
     if (!file) return;
     const db = await openDB();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
+      try {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
 
-      const record = {
-        id: RECORD_KEY,
-        file: file,
-        name: filename || file.name || 'shared_video.mp4',
-        type: file.type || 'video/mp4',
-        size: file.size || 0,
-        timestamp: Date.now()
-      };
+        const record = {
+          id: RECORD_KEY,
+          file: file,
+          name: filename || file.name || 'shared_video.mp4',
+          type: file.type || 'video/mp4',
+          size: file.size || 0,
+          timestamp: Date.now()
+        };
 
-      const putReq = store.put(record);
-      putReq.onsuccess = () => resolve();
-      putReq.onerror = () => reject(putReq.error);
-      tx.oncomplete = () => db.close();
-      tx.onerror = () => reject(tx.error);
+        store.put(record);
+
+        tx.oncomplete = function () {
+          try { db.close(); } catch {}
+          resolve();
+        };
+
+        tx.onerror = function () {
+          const err = tx.error || new Error('Transaction error while saving video');
+          try { db.close(); } catch {}
+          reject(err);
+        };
+
+        tx.onabort = function () {
+          const err = tx.error || new Error('Transaction aborted (quota exceeded or canceled)');
+          try { db.close(); } catch {}
+          reject(err);
+        };
+      } catch (err) {
+        try { db.close(); } catch {}
+        reject(err);
+      }
     });
   }
 
@@ -75,21 +94,27 @@
     try {
       const db = await openDB();
       return new Promise((resolve, reject) => {
+        let result = null;
         const tx = db.transaction(STORE_NAME, 'readonly');
         const store = tx.objectStore(STORE_NAME);
         const getReq = store.get(RECORD_KEY);
 
         getReq.onsuccess = function () {
-          resolve(getReq.result || null);
+          result = getReq.result || null;
         };
-        getReq.onerror = function () {
-          reject(getReq.error);
+
+        tx.oncomplete = function () {
+          try { db.close(); } catch {}
+          resolve(result);
         };
-        tx.oncomplete = () => db.close();
-        tx.onerror = () => reject(tx.error);
+
+        tx.onerror = function () {
+          try { db.close(); } catch {}
+          reject(tx.error || new Error('Failed to retrieve video record'));
+        };
       });
     } catch (err) {
-      console.warn('idb-store getSharedVideo error:', err);
+      console.warn('[idb-store] getSharedVideo error:', err);
       return null;
     }
   }
@@ -104,15 +129,20 @@
       return new Promise((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, 'readwrite');
         const store = tx.objectStore(STORE_NAME);
-        const delReq = store.delete(RECORD_KEY);
+        store.delete(RECORD_KEY);
 
-        delReq.onsuccess = () => resolve();
-        delReq.onerror = () => reject(delReq.error);
-        tx.oncomplete = () => db.close();
-        tx.onerror = () => reject(tx.error);
+        tx.oncomplete = function () {
+          try { db.close(); } catch {}
+          resolve();
+        };
+
+        tx.onerror = function () {
+          try { db.close(); } catch {}
+          reject(tx.error);
+        };
       });
     } catch (err) {
-      console.warn('idb-store clearSharedVideo error:', err);
+      console.warn('[idb-store] clearSharedVideo error:', err);
     }
   }
 

@@ -60,3 +60,4 @@ def test_manifest_exists_and_valid():
 if __name__ == "__main__":
     test_manifest_exists_and_valid()
     print("PASS: test_manifest_exists_and_valid")
+

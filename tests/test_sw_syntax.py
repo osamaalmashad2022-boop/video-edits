@@ -44,9 +44,12 @@ def test_sw():
     assert "POST" in content, "sw.js must handle POST method for share_target"
     assert "formData" in content, "sw.js must parse formData to extract shared file"
     assert "Response.redirect" in content, "sw.js must redirect after handling share-target"
+    assert "ignoreSearch" in content, "sw.js must match cache with ignoreSearch: true for ?shared=1 URLs"
+    assert "shared_error" in content, "sw.js must handle error redirect with shared_error param"
 
 
 if __name__ == "__main__":
     test_idb_store()
     test_sw()
     print("PASS: test_idb_store and test_sw")
+

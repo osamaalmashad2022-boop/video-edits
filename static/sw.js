@@ -70,13 +70,15 @@ self.addEventListener('fetch', (event) => {
 
           if (videoFile && typeof idbStore !== 'undefined') {
             await idbStore.saveSharedVideo(videoFile, videoFile.name);
+            return Response.redirect('/?shared=1', 303);
+          } else {
+            return Response.redirect('/?shared_error=NoVideoFile', 303);
           }
         } catch (err) {
           console.error('[SW] Share target processing error:', err);
+          const errorName = err.name || 'QuotaExceededError';
+          return Response.redirect('/?shared_error=' + encodeURIComponent(errorName), 303);
         }
-
-        // Redirect to root app with ?shared=1 query param
-        return Response.redirect('/?shared=1', 303);
       })()
     );
     return;
@@ -87,23 +89,32 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Stale-while-revalidate / Cache-first for static assets
+  // 3. Stale-while-revalidate / Cache-first with ignoreSearch & offline navigation fallback
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
+    caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
       if (cachedResponse) {
         // Fetch updated version in background
-        fetch(event.request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200 && event.request.method === 'GET') {
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, networkResponse);
-              });
-            }
-          })
-          .catch(() => {});
+        if (event.request.method === 'GET') {
+          fetch(event.request)
+            .then((networkResponse) => {
+              if (networkResponse && networkResponse.status === 200) {
+                caches.open(CACHE_NAME).then((cache) => {
+                  cache.put(event.request, networkResponse);
+                });
+              }
+            })
+            .catch(() => {});
+        }
         return cachedResponse;
       }
-      return fetch(event.request);
+
+      return fetch(event.request).catch((fetchErr) => {
+        // Offline fallback for navigation requests
+        if (event.request.mode === 'navigate') {
+          return caches.match('/', { ignoreSearch: true });
+        }
+        throw fetchErr;
+      });
     })
   );
 });

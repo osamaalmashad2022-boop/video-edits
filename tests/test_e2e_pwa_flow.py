@@ -59,11 +59,13 @@ def test_full_pwa_stack():
     vercel_file = WORKSPACE / "vercel.json"
     assert vercel_file.exists()
     vercel_data = json.loads(vercel_file.read_text(encoding="utf-8"))
-    assert any("sw.js" in r.get("src", "") for r in vercel_data.get("routes", []))
-    assert any("manifest.json" in r.get("src", "") for r in vercel_data.get("routes", []))
+    assert "routes" not in vercel_data
+    assert any("sw.js" in r.get("source", "") for r in vercel_data.get("rewrites", []))
+    assert any("manifest.json" in r.get("source", "") for r in vercel_data.get("rewrites", []))
 
     print("ALL END-TO-END CHECKS PASSED SUCCESSFULLY.")
 
 
 if __name__ == "__main__":
     test_full_pwa_stack()
+

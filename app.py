@@ -37,6 +37,13 @@ os.makedirs(STATIC_FOLDER, exist_ok=True)
 app = Flask(__name__, static_folder=STATIC_FOLDER)
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 
+
+@app.after_request
+def add_security_headers(response):
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Embedder-Policy"] = "credentialless"
+    return response
+
 # In-memory job tracker
 jobs = {}  # job_id -> { status, progress, filename, original_name, output_path, error, duration, new_duration }
 

@@ -34,13 +34,16 @@ def test_vercel_config():
     assert vercel_path.exists()
     config = json.loads(vercel_path.read_text(encoding="utf-8"))
 
-    # Should contain rules routing /sw.js and /manifest.json
-    routes = config.get("routes", [])
-    has_sw_route = any("sw.js" in r.get("src", "") for r in routes)
-    has_manifest_route = any("manifest.json" in r.get("src", "") for r in routes)
+    # Must NOT use legacy 'routes' together with cleanUrls or headers
+    assert "routes" not in config, "vercel.json must not use legacy 'routes' with cleanUrls/headers"
+    
+    # Must use rewrites for PWA files
+    rewrites = config.get("rewrites", [])
+    has_sw_rewrite = any("sw.js" in r.get("source", "") for r in rewrites)
+    has_manifest_rewrite = any("manifest.json" in r.get("source", "") for r in rewrites)
 
-    assert has_sw_route, "vercel.json missing routing for /sw.js"
-    assert has_manifest_route, "vercel.json missing routing for /manifest.json"
+    assert has_sw_rewrite, "vercel.json missing rewrite for /sw.js"
+    assert has_manifest_rewrite, "vercel.json missing rewrite for /manifest.json"
 
 
 if __name__ == "__main__":

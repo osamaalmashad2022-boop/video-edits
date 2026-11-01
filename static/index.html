@@ -855,7 +855,10 @@
                     <div class="pwa-install-sub">استقبل الفيديوهات مباشرة من خيار "مشاركة" بأي تطبيق</div>
                 </div>
             </div>
-            <button class="btn btn-primary" id="pwa-install-btn">تثبيت الآن</button>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <button class="btn btn-primary" id="pwa-install-btn">تثبيت الآن</button>
+                <button class="btn btn-ghost" id="pwa-dismiss-btn" title="إغلاق" style="padding: 6px 12px; font-size: 1.2rem; line-height: 1;">&times;</button>
+            </div>
         </div>
 
         <!-- Toast Notification for Shared Videos -->
@@ -1402,10 +1405,12 @@
     // ============================================================
     // PWA & WEB SHARE TARGET LIFECYCLE
     // ============================================================
-    function showToast(msg) {
+    function showToast(msg, isError = false) {
         const toast = document.getElementById('toast-notification');
         if (!toast) return;
-        toast.innerHTML = `${ICONS.check} ${escapeHtml(msg)}`;
+        const icon = isError ? ICONS.error : ICONS.check;
+        toast.innerHTML = `${icon} ${escapeHtml(msg)}`;
+        toast.style.borderColor = isError ? 'var(--error)' : 'var(--accent-primary)';
         toast.classList.add('show');
         setTimeout(() => toast.classList.remove('show'), 5000);
     }
@@ -1423,12 +1428,20 @@
     let deferredInstallPrompt = null;
     const installBanner = document.getElementById('pwa-install-banner');
     const installBtn = document.getElementById('pwa-install-btn');
+    const dismissBtn = document.getElementById('pwa-dismiss-btn');
+
+    if (dismissBtn && installBanner) {
+        dismissBtn.addEventListener('click', () => {
+            installBanner.classList.remove('visible');
+            sessionStorage.setItem('pwa-banner-dismissed', '1');
+        });
+    }
 
     window.addEventListener('beforeinstallprompt', (e) => {
         // Prevent default mini-infobar on mobile Chrome
         e.preventDefault();
         deferredInstallPrompt = e;
-        if (installBanner) {
+        if (installBanner && !sessionStorage.getItem('pwa-banner-dismissed')) {
             installBanner.classList.add('visible');
         }
     });
@@ -1453,13 +1466,23 @@
         showToast('تم تثبيت التطبيق بنجاح! يمكنك الآن مشاركة مقاطع الفيديو إليه من أي تطبيق.');
     });
 
-    // 3. Web Share Target Detection & Auto-Processing
-    async function checkIncomingSharedVideo() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const hasSharedFlag = urlParams.has('shared') || window.location.search.includes('shared=1');
+    // 3. Web Share Target Detection & Auto-Processing (with concurrency mutex)
+    let isCheckingShared = false;
 
-        if (typeof idbStore !== 'undefined') {
-            try {
+    async function checkIncomingSharedVideo() {
+        if (isCheckingShared) return;
+        isCheckingShared = true;
+
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const hasSharedFlag = urlParams.has('shared') || window.location.search.includes('shared=1');
+            const sharedError = urlParams.get('shared_error');
+
+            if (sharedError) {
+                showToast('تعذر استقبال الفيديو المشترك: ' + sharedError, true);
+            }
+
+            if (typeof idbStore !== 'undefined') {
                 const record = await idbStore.getSharedVideo();
                 if (record && record.file) {
                     showToast('تم استلام الفيديو المشترك! جاري إضافته وقصه فوراً...');
@@ -1476,20 +1499,27 @@
 
                     // Clean up IndexedDB store
                     await idbStore.clearSharedVideo();
-
-                    // Clean up URL query parameters
-                    if (hasSharedFlag) {
-                        window.history.replaceState({}, document.title, window.location.pathname);
-                    }
                 }
-            } catch (err) {
-                console.warn('[PWA] Error reading shared video from IDB:', err);
             }
+
+            // Always clean URL query parameters regardless of store state
+            if (hasSharedFlag || sharedError) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        } catch (err) {
+            console.warn('[PWA] Error reading shared video from IDB:', err);
+        } finally {
+            isCheckingShared = false;
         }
     }
 
     // Check on startup and when returning from background
-    window.addEventListener('DOMContentLoaded', checkIncomingSharedVideo);
+    if (document.readyState === 'loading') {
+        window.addEventListener('DOMContentLoaded', checkIncomingSharedVideo);
+    } else {
+        checkIncomingSharedVideo();
+    }
+
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
             checkIncomingSharedVideo();
