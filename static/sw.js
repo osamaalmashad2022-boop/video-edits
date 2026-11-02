@@ -6,7 +6,7 @@
 /* global idbStore */
 importScripts('/static/idb-store.js');
 
-const CACHE_NAME = 'video-trimmer-cache-v2';
+const CACHE_NAME = 'video-trimmer-cache-v3';
 
 const STATIC_ASSETS = [
   '/',

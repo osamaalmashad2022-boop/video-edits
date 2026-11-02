@@ -41,7 +41,8 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 @app.after_request
 def add_security_headers(response):
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
-    response.headers["Cross-Origin-Embedder-Policy"] = "credentialless"
+    # COEP removed: ffmpeg.wasm 0.12 single-threaded does not need SharedArrayBuffer
+    # and COEP can block the worker from loading same-origin scripts on some mobile browsers
     return response
 
 # In-memory job tracker
