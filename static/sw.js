@@ -6,7 +6,7 @@
 /* global idbStore */
 importScripts('/static/idb-store.js');
 
-const CACHE_NAME = 'video-trimmer-cache-v3';
+const CACHE_NAME = 'video-trimmer-cache-v4';
 
 const STATIC_ASSETS = [
   '/',
@@ -19,7 +19,8 @@ const STATIC_ASSETS = [
   '/static/icons/icon.svg',
   '/static/vendor/ffmpeg/ffmpeg.js',
   '/static/vendor/ffmpeg/util.js',
-  '/static/vendor/ffmpeg/814.ffmpeg.js'
+  '/static/vendor/ffmpeg/814.ffmpeg.js',
+  '/static/vendor/ffmpeg/ffmpeg-core.js'
 ];
 
 // Install: Cache core app shell
@@ -27,7 +28,6 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
-      // Cache assets gracefully (don't fail if optional file is unreachable)
       for (const url of STATIC_ASSETS) {
         try {
           await cache.add(url);
@@ -47,6 +47,7 @@ self.addEventListener('activate', (event) => {
       await Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log('[SW] Purging old cache:', key);
             return caches.delete(key);
           }
         })
@@ -89,7 +90,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Stale-while-revalidate / Cache-first with ignoreSearch & offline navigation fallback
+  // 3. Navigation requests: NETWORK-FIRST!
+  // This guarantees user always gets latest HTML and new updates when online,
+  // while falling back to cache when offline.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put('/', responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match('/', { ignoreSearch: true }))
+    );
+    return;
+  }
+
+  // 4. Static assets (JS, CSS, icons, wasm): Cache-first with network fallback
   event.respondWith(
     caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
       if (cachedResponse) {
@@ -104,12 +125,6 @@ self.addEventListener('fetch', (event) => {
           });
         }
         return networkResponse;
-      }).catch((fetchErr) => {
-        // Offline fallback for navigation requests
-        if (event.request.mode === 'navigate') {
-          return caches.match('/', { ignoreSearch: true });
-        }
-        throw fetchErr;
       });
     })
   );

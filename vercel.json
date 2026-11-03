@@ -50,7 +50,7 @@
       ]
     },
     {
-      "source": "/static/vendor/ffmpeg/(.*)\\.wasm",
+      "source": "/static/vendor/ffmpeg/ffmpeg-core.wasm",
       "headers": [
         {
           "key": "Content-Type",
@@ -81,6 +81,10 @@
         {
           "key": "Cross-Origin-Opener-Policy",
           "value": "same-origin"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
         }
       ]
     }

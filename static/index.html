@@ -842,6 +842,10 @@
             </div>
             <h1 class="app-title">Remove Watermark</h1>
             <p class="app-subtitle">Automatically trim <span>Gemini Notebook</span> logo from your videos</p>
+            <div style="margin-top: 8px; display: inline-flex; align-items: center; gap: 8px;">
+                <span id="app-version-badge" style="font-size: 0.75rem; background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4); padding: 3px 10px; border-radius: 9999px; font-weight: 500;">v3.1 (محرك محلي)</span>
+                <button onclick="forceAppUpdate()" title="تحديث التطبيق ومسح الذاكرة المؤقتة" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #cbd5e1; border-radius: 9999px; padding: 3px 10px; font-size: 0.75rem; cursor: pointer;">🔄 تحديث فوري</button>
+            </div>
         </header>
 
         <!-- PWA Install Banner -->
@@ -936,6 +940,24 @@
     let totalTimeSaved = 0;
     let totalSizeSaved = 0;
 
+    // Global Force Update Utility
+    window.forceAppUpdate = async function() {
+        showToast('جاري تحديث التطبيق ومسح التخزين المؤقت...', false);
+        try {
+            if ('serviceWorker' in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                for (let r of regs) await r.unregister();
+            }
+            if ('caches' in window) {
+                const keys = await caches.keys();
+                for (let k of keys) await caches.delete(k);
+            }
+        } catch (e) {
+            console.warn('Update cleanup error:', e);
+        }
+        window.location.href = window.location.origin + '/?updated=' + Date.now();
+    };
+
     let ffmpegInstance = null;
     let isEngineLoading = false;
     let engineLoaded = false;
@@ -987,12 +1009,6 @@
 
                 const { FFmpeg } = window.FFmpegWASM;
                 const { toBlobURL } = window.FFmpegUtil;
-
-                const ffmpeg = new FFmpeg();
-
-                ffmpeg.on('log', ({ message }) => {
-                    console.log('[FFmpeg Log]:', message);
-                });
 
                 if (statusCallback) statusCallback("جاري الاتصال بمحرك الفيديو...", 10);
 
@@ -1078,22 +1094,27 @@
                     }
                 }, 5000);
 
-                try {
-                    console.log('[FFmpeg] Starting ffmpeg.load() with method:', loadMethod, 'coreURL:', coreURL?.substring(0, 80));
-                    const loadPromise = ffmpeg.load({ coreURL, wasmURL });
+                let ffmpeg = null;
+                const tryLoadInstance = async (urls) => {
+                    const inst = new FFmpeg();
+                    inst.on('log', ({ message }) => console.log('[FFmpeg Log]:', message));
+                    const loadPromise = inst.load(urls);
                     const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => reject(new Error("استغرق تشغيل محرك الفيديو وقتاً طويلاً (5 دقائق). يرجى إعادة المحاولة.")), 300000);
+                        setTimeout(() => reject(new Error("استغرق تشغيل محرك الفيديو وقتاً طويلاً (5 دقائق). يرجى الضغط على زر تحديث التطبيق أدناه.")), 300000);
                     });
                     await Promise.race([loadPromise, timeoutPromise]);
+                    return inst;
+                };
+
+                try {
+                    console.log('[FFmpeg] Starting ffmpeg.load() with method:', loadMethod, 'coreURL:', coreURL?.substring(0, 80));
+                    ffmpeg = await tryLoadInstance({ coreURL, wasmURL });
                 } catch (loadErr) {
-                    // If direct URLs failed, retry once with blob URLs as a last resort
                     if (loadMethod === 'direct') {
                         console.warn('[FFmpeg] Direct URL load() failed, retrying with blob URLs:', loadErr.message);
-                        if (statusCallback) statusCallback("جاري إعادة المحاولة بطريقة بديلة...", 50);
+                        if (statusCallback) statusCallback("جاري تجربة طريقة تشغيل بديلة...", 50);
                         const urls = await tryBlobURLs('/static/vendor/ffmpeg');
-                        coreURL = urls.core;
-                        wasmURL = urls.wasm;
-                        await ffmpeg.load({ coreURL, wasmURL });
+                        ffmpeg = await tryLoadInstance(urls);
                     } else {
                         throw loadErr;
                     }
@@ -1437,7 +1458,12 @@
             icon.innerHTML = ICONS.error;
 
             if (data.error) {
-                results.innerHTML = `<div class="job-error-msg">${escapeHtml(data.error)}</div>`;
+                results.innerHTML = `
+                    <div class="job-error-msg">${escapeHtml(data.error)}</div>
+                    <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button onclick="forceAppUpdate()" class="btn btn-primary" style="padding: 6px 14px; font-size: 0.8rem; background: #6366f1;">🔄 تحديث التطبيق ومسح التخزين القديم</button>
+                    </div>
+                `;
             }
 
             actions.innerHTML = `
@@ -1519,8 +1545,20 @@
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('/sw.js', { scope: '/' })
-                .then(reg => console.log('[PWA] Service Worker active with scope:', reg.scope))
+                .then(reg => {
+                    console.log('[PWA] Service Worker active with scope:', reg.scope);
+                    reg.update().catch(() => {});
+                })
                 .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
+        });
+
+        let isRefreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!isRefreshing) {
+                isRefreshing = true;
+                console.log('[PWA] New Service Worker active, reloading for fresh code...');
+                window.location.reload();
+            }
         });
     }
 
