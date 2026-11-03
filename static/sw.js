@@ -67,7 +67,17 @@ self.addEventListener('fetch', (event) => {
       (async () => {
         try {
           const formData = await event.request.formData();
-          const videoFile = formData.get('video');
+          let videoFile = formData.get('video');
+          
+          // Robust fallback: if key is not 'video', find first File object in formData
+          if (!videoFile) {
+            for (const [key, val] of formData.entries()) {
+              if (val instanceof File || (val && typeof val === 'object' && val.size > 0)) {
+                videoFile = val;
+                break;
+              }
+            }
+          }
 
           if (videoFile && typeof idbStore !== 'undefined') {
             await idbStore.saveSharedVideo(videoFile, videoFile.name);

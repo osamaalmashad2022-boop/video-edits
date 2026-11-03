@@ -940,17 +940,21 @@
     let totalTimeSaved = 0;
     let totalSizeSaved = 0;
 
-    // Global Force Update Utility
+    // Global Force Update Utility (Clears caches and updates SW without unregistering it)
     window.forceAppUpdate = async function() {
         showToast('جاري تحديث التطبيق ومسح التخزين المؤقت...', false);
         try {
-            if ('serviceWorker' in navigator) {
-                const regs = await navigator.serviceWorker.getRegistrations();
-                for (let r of regs) await r.unregister();
-            }
             if ('caches' in window) {
                 const keys = await caches.keys();
                 for (let k of keys) await caches.delete(k);
+            }
+            if ('serviceWorker' in navigator) {
+                const reg = await navigator.serviceWorker.getRegistration();
+                if (reg) {
+                    await reg.update();
+                } else {
+                    await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+                }
             }
         } catch (e) {
             console.warn('Update cleanup error:', e);
@@ -1541,16 +1545,14 @@
         setTimeout(() => toast.classList.remove('show'), 5000);
     }
 
-    // 1. Service Worker Registration
+    // 1. Service Worker Registration (Immediate registration for reliable Share Target interception)
     if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js', { scope: '/' })
-                .then(reg => {
-                    console.log('[PWA] Service Worker active with scope:', reg.scope);
-                    reg.update().catch(() => {});
-                })
-                .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
-        });
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .then(reg => {
+                console.log('[PWA] Service Worker active with scope:', reg.scope);
+                reg.update().catch(() => {});
+            })
+            .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
 
         let isRefreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
